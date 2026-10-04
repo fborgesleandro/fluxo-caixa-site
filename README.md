@@ -1,36 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 📊 Fluxo de Caixa & Gestão Patrimonial
 
-## Getting Started
+Aplicação moderna e profissional de **Gestão Financeira Pessoal e Patrimonial**, desenvolvida com **Next.js (App Router)**, **React 19**, **TypeScript** e **Prisma ORM** com banco de dados estruturado (SQLite local / PostgreSQL na nuvem).
 
-First, run the development server:
+Construída para substituir a lentidão do Google Apps Script por um site rápido, seguro, responsivo e com custo zero de hospedagem.
+
+---
+
+## 🚀 Tecnologias
+
+- **Frontend:** Next.js 16 (App Router), React 19, TypeScript, Lucide Icons, Gráficos SVG interativos e Google Charts.
+- **Backend:** Next.js API Routes (`/api/auth`, `/api/lancamentos`, `/api/investimentos`, `/api/importar`).
+- **Banco de Dados & ORM:** Prisma ORM com SQLite (ambiente local) e preparado para PostgreSQL / Supabase / Neon na nuvem.
+- **Autenticação:** JWT com cookies HTTP-only e senhas criptografadas com `bcryptjs`.
+- **Migração:** Importador nativo de CSV do Google Sheets com validação e limpeza automática.
+
+---
+
+## 🔑 Acesso ao Sistema
+
+O banco de dados já vem configurado com os dois usuários do sistema:
+
+| Usuário | Senha Inicial | Nível |
+| :--- | :--- | :--- |
+| `leandrob` | `Lek002**` | Administrador |
+| `jipsyab` | `toy02sushi02` | Administrador |
+
+---
+
+## 🛠️ Comandos Principais
 
 ```bash
+# Iniciar o servidor de desenvolvimento
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+
+# Abrir o Prisma Studio (interface visual para editar o banco de dados diretamente)
+npm run db:studio
+
+# Aplicar mudanças no banco de dados
+npm run db:push
+
+# Executar seed inicial de dados e usuários
+npm run db:seed
+
+# Compilar para produção
+npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+O sistema roda por padrão em `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 📥 Como Importar o seu estudo do Google Sheets
 
-## Learn More
+1. Abra sua planilha no Google Sheets (aba de fluxo de caixa ou de investimentos).
+2. Vá em **Arquivo > Fazer download > Valores separados por vírgula (.csv)**.
+3. No site, clique no botão superior **"Importar Planilha"**.
+4. Selecione se é **Lançamentos** ou **Investimentos**.
+5. Selecione o arquivo CSV (ou cole o texto copiado da planilha).
+6. Clique em **Importar para o Banco de Dados**. Todos os lançamentos serão normalizados e gravados instantaneamente no banco de dados!
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## ☁️ Como Colocar no Ar (Deploy 100% Gratuito)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. **Repositório:** Envie este projeto para o seu GitHub (público ou privado).
+2. **Banco na Nuvem (PostgreSQL):**
+   - Crie uma conta gratuita no [Supabase](https://supabase.com) ou [Neon](https://neon.tech).
+   - Copie a string de conexão (`DATABASE_URL=postgresql://...`).
+3. **Deploy na Vercel:**
+   - Conecte o repositório na [Vercel](https://vercel.com).
+   - Em *Environment Variables*, adicione:
+     - `DATABASE_URL`: URL do seu banco Supabase/Neon.
+     - `JWT_SECRET`: uma chave secreta para as sessões.
+   - Clique em **Deploy**! O site estará online com HTTPS e link exclusivo.

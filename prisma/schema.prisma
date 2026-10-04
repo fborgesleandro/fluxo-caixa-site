@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  nome      String
+  senha     String
+  role      String   @default("user")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Lancamento {
+  id           String   @id @default(cuid())
+  competencia  String   // YYYY-MM-DD
+  dataLcto     String   // YYYY-MM-DD
+  ano          Int
+  mesNum       Int
+  mes          String   // jan, fev, etc.
+  natureza     String   // Receita, Despesa, Custo
+  grupo        String
+  categoria    String
+  subcategoria String
+  responsavel  String
+  valor        Float
+  status       String   @default("Realizado")
+  observacao   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([dataLcto])
+  @@index([competencia])
+  @@index([ano, mesNum])
+  @@index([natureza])
+  @@index([grupo])
+  @@index([responsavel])
+}
+
+model Investimento {
+  id              String   @id @default(cuid())
+  banco           String   // Ex: NUBANK, PICPAY, SWILE
+  tipo            String   // Ex: Caixinha Turbo, Bolsa de Valores, CDB
+  valor           Float
+  dataAtualizacao String   // YYYY-MM-DD
+  observacao      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([banco])
+  @@index([dataAtualizacao])
+}
