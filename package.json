@@ -8,8 +8,11 @@
     "start": "next start",
     "lint": "eslint",
     "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "sql": "tsx scripts/sql.ts"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",

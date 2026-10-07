@@ -2,9 +2,13 @@ import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import bcrypt from 'bcryptjs';
 
-const SECRET_KEY = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'fluxo_caixa_segredo_super_protegido_2026_xyz'
-);
+function getSecretKey(): Uint8Array {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET não está definido nas variáveis de ambiente.');
+  }
+  return new TextEncoder().encode(secret);
+}
 
 export interface TokenPayload {
   userId: string;
@@ -18,12 +22,12 @@ export async function criarToken(payload: TokenPayload): Promise<string> {
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('30d')
-    .sign(SECRET_KEY);
+    .sign(getSecretKey());
 }
 
 export async function verificarToken(token: string): Promise<TokenPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, SECRET_KEY);
+    const { payload } = await jwtVerify(token, getSecretKey());
     return payload as unknown as TokenPayload;
   } catch {
     return null;
