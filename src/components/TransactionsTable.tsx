@@ -3,9 +3,13 @@
 import React, { useState } from 'react';
 import { LancamentoItem } from './CashFlowChart';
 import { Plus, Trash2, Edit2, Check, X, Search, Download } from 'lucide-react';
+import NewLaunchTypeModal from './NewLaunchTypeModal';
+import RecurringLaunchModal from './RecurringLaunchModal';
+import { calcularStatusAutomatico, obterHojeISO } from '@/lib/recorrencia';
 
 interface TransactionsTableProps {
   dados: LancamentoItem[];
+  todosLancamentos?: LancamentoItem[];
   onSalvar: (lancamento: Partial<LancamentoItem>) => Promise<void>;
   onExcluir: (id: string) => Promise<void>;
   textoFiltro: string;
@@ -17,6 +21,7 @@ interface TransactionsTableProps {
     responsaveis: string[];
     status: string[];
   };
+  onRecarregar?: () => Promise<void>;
 }
 
 function formatarData(dataStr: string): string {
@@ -69,36 +74,47 @@ export function ajustarStatusPorNatureza(novaNatureza?: string, statusAtual?: st
 
 export default function TransactionsTable({
   dados,
+  todosLancamentos,
   onSalvar,
   onExcluir,
   textoFiltro,
   onTextoFiltroChange,
   opcoesSugestoes,
+  onRecarregar,
 }: TransactionsTableProps) {
   const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
   const [linhaEmEdicao, setLinhaEmEdicao] = useState<string | null>(null);
   const [confirmarExclusaoId, setConfirmarExclusaoId] = useState<string | null>(null);
+
+  // Estados dos modais de escolha e de recorrência
+  const [modalTipoAberto, setModalTipoAberto] = useState(false);
+  const [modalRecorrenteAberto, setModalRecorrenteAberto] = useState(false);
 
   // Estado para duplicação inline e no painel
   const [duplicandoOrigemId, setDuplicandoOrigemId] = useState<string | null>(null);
   const [formDuplicar, setFormDuplicar] = useState<Partial<LancamentoItem>>({});
   const [isPainelDuplicando, setIsPainelDuplicando] = useState(false);
 
+  const hojeInicial = obterHojeISO();
+
   // Formulário do painel de edição rápido
   const [formPainel, setFormPainel] = useState<Partial<LancamentoItem>>({
     natureza: 'Despesa',
-    status: 'Pago',
+    status: calcularStatusAutomatico('Despesa', hojeInicial),
+    dataLcto: hojeInicial,
+    competencia: hojeInicial,
   });
 
   // Formulário de edição inline na tabela
   const [formInline, setFormInline] = useState<Partial<LancamentoItem>>({});
 
   const limparPainel = () => {
+    const hoje = obterHojeISO();
     setFormPainel({
       natureza: 'Despesa',
-      status: 'Pago',
-      dataLcto: '',
-      competencia: '',
+      status: calcularStatusAutomatico('Despesa', hoje),
+      dataLcto: hoje,
+      competencia: hoje,
       grupo: '',
       categoria: '',
       subcategoria: '',
@@ -134,10 +150,15 @@ export default function TransactionsTable({
       alert('Selecione um lançamento para duplicar.');
       return;
     }
-    setFormPainel((prev) => ({
-      ...prev,
-      id: undefined, // remove o ID para que seja salvo como um novo lançamento
-    }));
+    setFormPainel((prev) => {
+      const nat = prev.natureza || 'Despesa';
+      const dt = prev.dataLcto || obterHojeISO();
+      return {
+        ...prev,
+        id: undefined, // remove o ID para que seja salvo como um novo lançamento
+        status: calcularStatusAutomatico(nat, dt),
+      };
+    });
     setIsPainelDuplicando(true);
     setSelecionadoId(null);
   };
@@ -174,23 +195,23 @@ export default function TransactionsTable({
     setFormInline({});
   };
 
-  // Funções de Duplicação Inline
   const iniciarDuplicacao = (item: LancamentoItem, e: React.MouseEvent) => {
     e.stopPropagation();
     setLinhaEmEdicao(null);
     setFormInline({});
     setDuplicandoOrigemId(item.id);
     const nat = item.natureza || 'Despesa';
+    const dt = item.dataLcto || obterHojeISO();
     setFormDuplicar({
       natureza: nat,
       grupo: item.grupo || '',
       categoria: item.categoria || '',
       subcategoria: item.subcategoria || '',
       responsavel: item.responsavel || '',
-      status: ajustarStatusPorNatureza(nat, item.status),
+      status: calcularStatusAutomatico(nat, dt),
       valor: Math.abs(item.valor),
-      dataLcto: item.dataLcto || '',
-      competencia: item.competencia || item.dataLcto || '',
+      dataLcto: dt,
+      competencia: item.competencia || dt,
       observacao: item.observacao || '',
     });
   };
@@ -298,7 +319,11 @@ export default function TransactionsTable({
           >
             <Download size={14} /> Exportar CSV / Excel
           </button>
-          <button className="btn secondary" onClick={limparPainel}>
+          <button
+            className="btn secondary"
+            onClick={() => setModalTipoAberto(true)}
+            title="Adicionar lançamento pontual ou recorrente"
+          >
             Novo lançamento
           </button>
         </div>
@@ -328,15 +353,21 @@ export default function TransactionsTable({
           <label>Data LCTO</label>
           <input
             type="date"
+            disabled={false}
             value={formPainel.dataLcto || ''}
             onChange={(e) => {
               const val = e.target.value;
-              setFormPainel((prev) => ({
-                ...prev,
-                dataLcto: val,
-                competencia: (!prev.competencia || prev.competencia === prev.dataLcto) ? val : prev.competencia,
-              }));
+              setFormPainel((prev) => {
+                const nat = prev.natureza || 'Despesa';
+                return {
+                  ...prev,
+                  dataLcto: val,
+                  status: calcularStatusAutomatico(nat, val),
+                  competencia: (!prev.competencia || prev.competencia === prev.dataLcto) ? val : prev.competencia,
+                };
+              });
             }}
+            title="Data do lançamento financeiro (editável e selecionável pelo usuário)"
           />
         </div>
 
@@ -346,11 +377,14 @@ export default function TransactionsTable({
             value={formPainel.natureza || 'Despesa'}
             onChange={(e) => {
               const novaNat = e.target.value;
-              setFormPainel((prev) => ({
-                ...prev,
-                natureza: novaNat,
-                status: ajustarStatusPorNatureza(novaNat, prev.status),
-              }));
+              setFormPainel((prev) => {
+                const dt = prev.dataLcto || obterHojeISO();
+                return {
+                  ...prev,
+                  natureza: novaNat,
+                  status: calcularStatusAutomatico(novaNat, dt),
+                };
+              });
             }}
           >
             <option value="Receita">Receita</option>
@@ -556,11 +590,15 @@ export default function TransactionsTable({
                             value={formInline.dataLcto || ''}
                             onChange={(e) => {
                               const val = e.target.value;
-                              setFormInline((prev) => ({
-                                ...prev,
-                                dataLcto: val,
-                                competencia: (!prev.competencia || prev.competencia === prev.dataLcto) ? val : prev.competencia,
-                              }));
+                              setFormInline((prev) => {
+                                const nat = prev.natureza || 'Despesa';
+                                return {
+                                  ...prev,
+                                  dataLcto: val,
+                                  status: calcularStatusAutomatico(nat, val),
+                                  competencia: (!prev.competencia || prev.competencia === prev.dataLcto) ? val : prev.competencia,
+                                };
+                              });
                             }}
                           />
                         </td>
@@ -570,11 +608,14 @@ export default function TransactionsTable({
                             value={formInline.natureza || 'Despesa'}
                             onChange={(e) => {
                               const novaNat = e.target.value;
-                              setFormInline((prev) => ({
-                                ...prev,
-                                natureza: novaNat,
-                                status: ajustarStatusPorNatureza(novaNat, prev.status),
-                              }));
+                              setFormInline((prev) => {
+                                const dt = prev.dataLcto || obterHojeISO();
+                                return {
+                                  ...prev,
+                                  natureza: novaNat,
+                                  status: calcularStatusAutomatico(novaNat, dt),
+                                };
+                              });
                             }}
                           >
                             <option value="Receita">Receita</option>
@@ -744,11 +785,15 @@ export default function TransactionsTable({
                             value={formDuplicar.dataLcto || ''}
                             onChange={(e) => {
                               const val = e.target.value;
-                              setFormDuplicar((prev) => ({
-                                ...prev,
-                                dataLcto: val,
-                                competencia: (!prev.competencia || prev.competencia === prev.dataLcto) ? val : prev.competencia,
-                              }));
+                              setFormDuplicar((prev) => {
+                                const nat = prev.natureza || 'Despesa';
+                                return {
+                                  ...prev,
+                                  dataLcto: val,
+                                  status: calcularStatusAutomatico(nat, val),
+                                  competencia: (!prev.competencia || prev.competencia === prev.dataLcto) ? val : prev.competencia,
+                                };
+                              });
                             }}
                           />
                         </td>
@@ -758,11 +803,14 @@ export default function TransactionsTable({
                             value={formDuplicar.natureza || 'Despesa'}
                             onChange={(e) => {
                               const novaNat = e.target.value;
-                              setFormDuplicar((prev) => ({
-                                ...prev,
-                                natureza: novaNat,
-                                status: ajustarStatusPorNatureza(novaNat, prev.status),
-                              }));
+                              setFormDuplicar((prev) => {
+                                const dt = prev.dataLcto || obterHojeISO();
+                                return {
+                                  ...prev,
+                                  natureza: novaNat,
+                                  status: calcularStatusAutomatico(novaNat, dt),
+                                };
+                              });
                             }}
                           >
                             <option value="Receita">Receita</option>
@@ -974,11 +1022,15 @@ export default function TransactionsTable({
                       value={formDuplicar.dataLcto || ''}
                       onChange={(e) => {
                         const val = e.target.value;
-                        setFormDuplicar((prev) => ({
-                          ...prev,
-                          dataLcto: val,
-                          competencia: (!prev.competencia || prev.competencia === prev.dataLcto) ? val : prev.competencia,
-                        }));
+                        setFormDuplicar((prev) => {
+                          const nat = prev.natureza || 'Despesa';
+                          return {
+                            ...prev,
+                            dataLcto: val,
+                            status: calcularStatusAutomatico(nat, val),
+                            competencia: (!prev.competencia || prev.competencia === prev.dataLcto) ? val : prev.competencia,
+                          };
+                        });
                       }}
                     />
                   </div>
@@ -989,11 +1041,14 @@ export default function TransactionsTable({
                       value={formDuplicar.natureza || 'Despesa'}
                       onChange={(e) => {
                         const novaNat = e.target.value;
-                        setFormDuplicar((prev) => ({
-                          ...prev,
-                          natureza: novaNat,
-                          status: ajustarStatusPorNatureza(novaNat, prev.status),
-                        }));
+                        setFormDuplicar((prev) => {
+                          const dt = prev.dataLcto || obterHojeISO();
+                          return {
+                            ...prev,
+                            natureza: novaNat,
+                            status: calcularStatusAutomatico(novaNat, dt),
+                          };
+                        });
                       }}
                     >
                       <option value="Receita">Receita</option>
@@ -1100,6 +1155,28 @@ export default function TransactionsTable({
           </div>
         </div>
       )}
+
+      {/* Modal de Escolha do Tipo de Lançamento */}
+      <NewLaunchTypeModal
+        aberto={modalTipoAberto}
+        onFechar={() => setModalTipoAberto(false)}
+        onEscolherPontual={() => {
+          limparPainel();
+          const el = document.querySelector('.edit-panel');
+          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }}
+        onEscolherRecorrente={() => setModalRecorrenteAberto(true)}
+      />
+
+      {/* Modal de Criação de Lançamento Recorrente */}
+      <RecurringLaunchModal
+        aberto={modalRecorrenteAberto}
+        lancamentosExistentes={todosLancamentos || dados}
+        onFechar={() => setModalRecorrenteAberto(false)}
+        onSucesso={async () => {
+          if (onRecarregar) await onRecarregar();
+        }}
+      />
     </section>
   );
 }

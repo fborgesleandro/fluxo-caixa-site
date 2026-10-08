@@ -568,8 +568,10 @@ export default function Home() {
         <div style={{ marginTop: 20 }}>
           <TransactionsTable
             dados={dadosFiltrados}
+            todosLancamentos={lancamentos}
             onSalvar={salvarLancamento}
             onExcluir={excluirLancamento}
+            onRecarregar={carregarDados}
             textoFiltro={filtros.texto}
             onTextoFiltroChange={(txt) => onFiltroChange('texto', txt)}
             opcoesSugestoes={{

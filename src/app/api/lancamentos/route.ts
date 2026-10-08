@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { obterUsuarioSessao } from '@/lib/auth';
+import { calcularStatusAutomatico } from '@/lib/recorrencia';
 
 const MESES_NOMES = ['', 'jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
@@ -88,20 +89,13 @@ export async function POST(request: Request) {
     const subcategoria = String(payload.subcategoria || '').trim();
     const responsavel = String(payload.responsavel || '').trim();
     const natNorm = natureza.toLowerCase();
-    const statusDefault = natNorm === 'receita' ? 'Recebido' : 'Pago';
-    let status = payload.status ? String(payload.status).trim() : statusDefault;
-    if (status === 'Realizado') {
-      status = statusDefault;
-    }
-
-    const observacao = payload.observacao ? String(payload.observacao).trim() : null;
 
     let valorNum = Number(payload.valor);
     if (isNaN(valorNum)) {
       return NextResponse.json({ erro: 'Valor inválido' }, { status: 400 });
     }
 
-    // Regra financeira: Receita é positiva, Despesa e Custo são negativos ou absoluto conforme visualização
+    // Regra financeira: Receita é positiva, Despesa e Custo são negativos
     if (natNorm === 'receita') {
       valorNum = Math.abs(valorNum);
     } else {
@@ -113,36 +107,82 @@ export async function POST(request: Request) {
     const ano = Number(dataRef.slice(0, 4)) || new Date().getFullYear();
     const mesNum = Number(dataRef.slice(5, 7)) || (new Date().getMonth() + 1);
     const mes = MESES_NOMES[mesNum] || '';
+    const observacao = payload.observacao ? String(payload.observacao).trim() : null;
 
-    const dados = {
-      competencia,
-      dataLcto,
-      ano,
-      mesNum,
-      mes,
-      natureza,
-      grupo,
-      categoria,
-      subcategoria,
-      responsavel,
-      valor: valorNum,
-      status,
-      observacao,
-    };
+    let status = payload.status ? String(payload.status).trim() : '';
 
-    let registro;
     if (id) {
-      registro = await prisma.lancamento.update({
+      // Edição de lançamento existente
+      const existente = await prisma.lancamento.findUnique({ where: { id } });
+      if (!existente) {
+        return NextResponse.json({ erro: 'Lançamento não encontrado' }, { status: 404 });
+      }
+
+      const dataMudou = Boolean(dataLcto && dataLcto !== existente.dataLcto);
+      const naturezaMudou = Boolean(natureza && natureza !== existente.natureza);
+
+      // Regra de Edição: Se DATA LCTO ou Natureza mudou, recalcula automaticamente o STATUS
+      // mantendo consistência (ex: mudar de novembro para setembro muda À Pagar para Pago)
+      if (dataMudou || naturezaMudou) {
+        if (!status || status === existente.status || status === 'Realizado') {
+          status = calcularStatusAutomatico(natureza, dataLcto);
+        }
+      } else {
+        if (!status || status === 'Realizado') {
+          status = existente.status || calcularStatusAutomatico(natureza, dataLcto);
+        }
+      }
+
+      const dados = {
+        competencia,
+        dataLcto,
+        ano,
+        mesNum,
+        mes,
+        natureza,
+        grupo,
+        categoria,
+        subcategoria,
+        responsavel,
+        valor: valorNum,
+        status,
+        observacao,
+      };
+
+      const registro = await prisma.lancamento.update({
         where: { id },
         data: dados,
       });
+
+      return NextResponse.json({ sucesso: true, registro });
     } else {
-      registro = await prisma.lancamento.create({
+      // Criação de novo lançamento pontual: STATUS calculado automaticamente com base na DATA LCTO e Natureza
+      if (!status || status === 'Realizado') {
+        status = calcularStatusAutomatico(natureza, dataLcto);
+      }
+
+      const dados = {
+        competencia,
+        dataLcto,
+        ano,
+        mesNum,
+        mes,
+        natureza,
+        grupo,
+        categoria,
+        subcategoria,
+        responsavel,
+        valor: valorNum,
+        status,
+        observacao,
+      };
+
+      const registro = await prisma.lancamento.create({
         data: dados,
       });
-    }
 
-    return NextResponse.json({ sucesso: true, registro });
+      return NextResponse.json({ sucesso: true, registro });
+    }
   } catch (error) {
     console.error('Erro ao salvar lançamento:', error);
     return NextResponse.json({ erro: 'Erro ao salvar lançamento' }, { status: 500 });

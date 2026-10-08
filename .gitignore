@@ -55,3 +55,9 @@ next-env.d.ts
 /backups/
 /prisma/*.db*
 /prisma/*.bak
+
+# ide & local test scripts
+.vscode/
+scripts/testar-producao-remota.ts
+scripts/testar-recorrencia-completo.ts
+
